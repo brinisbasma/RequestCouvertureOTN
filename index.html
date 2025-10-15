@@ -19,10 +19,25 @@
     #summary td:first-child { color:#ffc107; }
     .legend { position:absolute; bottom:20px; left:20px; background:rgba(0,0,0,0.6); padding:10px 14px; border-radius:8px; font-size:13px; z-index:1000; }
     .gradient-bar { height:10px; width:120px; background:linear-gradient(to right, yellow, orange, red); border-radius:5px; margin-top:6px; }
+	#mainTitle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001; /* plus grand que la carte et le résumé */
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffc107;
+  background: rgba(0,0,0,0.6);
+  padding: 10px 20px;
+  border-radius: 10px;
+  text-align: center;
+  font-family: sans-serif;
+}
   </style>
 </head>
 <body>
-
+<div id="mainTitle">Tests de couverture réseau FIXBOX ORANGE TUNISIE</div>
 <div id="map"></div>
 <div id="summary">
   <h3>Résumé par gouvernorat</h3>
