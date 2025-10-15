@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Tests de couverture</title>
+  <title>Carte Tests Tunisie</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -12,120 +12,37 @@
   <style>
     html, body { margin:0; height:100%; font-family:sans-serif; background:#121212; color:white; }
     #map { height:100%; width:100%; }
-
-    /* Grand titre */
-    #mainTitle {
-      position: absolute;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1001;
-      font-size: 28px;
-      font-weight: bold;
-      color: #ffc107;
-      background: rgba(0,0,0,0.6);
-      padding: 10px 20px;
-      border-radius: 10px;
-      text-align: center;
-    }
-
-    /* Panneau résumé */
-    #summaryPanel {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      z-index: 1000;
-      width: 260px;
-      font-size: 14px;
-      color: white;
-    }
-
-    #summaryContent {
-      background: rgba(0,0,0,0.7);
-      padding: 10px;
-      border-radius: 10px;
-      max-height: 400px;
-      overflow-y: auto;
-      transition: transform 0.3s ease, opacity 0.3s ease;
-    }
-
-    #toggleSummary {
-      width: 100%;
-      padding: 8px;
-      background: #444;
-      color: #ffc107;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    /* Légende */
-    .legend {
-      position:absolute;
-      bottom:20px;
-      left:20px;
-      background:rgba(0,0,0,0.6);
-      padding:10px 14px;
-      border-radius:8px;
-      font-size:13px;
-      z-index:1000;
-    }
-    .gradient-bar {
-      height:10px;
-      width:120px;
-      background:linear-gradient(to right, yellow, orange, red);
-      border-radius:5px;
-      margin-top:6px;
-    }
-
-    /* Responsive mobile */
-    @media (max-width: 768px) {
-      #summaryPanel {
-        width: 90%;
-        right: 50%;
-        top: auto;
-        bottom: 10px;
-        transform: translateX(50%);
-      }
-
-      #summaryContent {
-        transform: translateY(100%);
-        opacity: 0;
-      }
-
-      #summaryContent.open {
-        transform: translateY(0);
-        opacity: 1;
-      }
-
-      #toggleSummary {
-        font-size: 12px;
-      }
-
-      .legend {
-        left: 50%;
-        bottom: 60px;
-        transform: translateX(-50%);
-        font-size: 11px;
-      }
-    }
+    #summary { position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.7); padding:15px; border-radius:10px; width:260px; max-height:80vh; overflow-y:auto; font-size:14px; z-index:1000; }
+    #summary h3 { margin-top:0; font-size:16px; text-align:center; border-bottom:1px solid #444; padding-bottom:5px; }
+    #summary table { width:100%; border-collapse:collapse; color:#fff; }
+    #summary td { padding:4px 6px; border-bottom:1px solid #333; }
+    #summary td:first-child { color:#ffc107; }
+    .legend { position:absolute; bottom:20px; left:20px; background:rgba(0,0,0,0.6); padding:10px 14px; border-radius:8px; font-size:13px; z-index:1000; }
+    .gradient-bar { height:10px; width:120px; background:linear-gradient(to right, yellow, orange, red); border-radius:5px; margin-top:6px; }
+	#mainTitle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1001; /* plus grand que la carte et le résumé */
+  font-size: 28px;
+  font-weight: bold;
+  color: #ffc107;
+  background: rgba(0,0,0,0.6);
+  padding: 10px 20px;
+  border-radius: 10px;
+  text-align: center;
+  font-family: sans-serif;
+}
   </style>
 </head>
 <body>
-
-<div id="mainTitle">Tests de couverture réseau FIXBOX ORANGE TUNISIE </div>
-
+<div id="mainTitle">Tests de couverture réseau FIXBOX ORANGE TUNISIE</div>
 <div id="map"></div>
-
-<div id="summaryPanel">
-  <button id="toggleSummary">Résumé par gouvernorat ▼</button>
-  <div id="summaryContent">
-    <h3>Résumé par gouvernorat</h3>
-    <table id="govTable"><tr><td>Chargement...</td></tr></table>
-  </div>
+<div id="summary">
+  <h3>Résumé par gouvernorat</h3>
+  <table id="govTable"><tr><td>Chargement...</td></tr></table>
 </div>
-
 <div class="legend">
   <strong>Intensité des tests</strong>
   <div class="gradient-bar"></div>
@@ -138,11 +55,10 @@
 <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
 
 <script>
-// Initialiser la carte
 const map = L.map('map').setView([33.9, 9.5], 7);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OSM, © CARTO' }).addTo(map);
 
-// Fonction pour colorer les points
+// Coloration des points
 function getColor(value, min, max) {
   const ratio = (value - min) / (max - min);
   const r = 255, g = Math.round(255 - 200*ratio), b = 0;
@@ -153,12 +69,14 @@ function getColor(value, min, max) {
 fetch("tunisia_gouvernorats.json")
   .then(res => res.json())
   .then(geojsonData => {
+    // Afficher les polygones
     L.geoJSON(geojsonData, { style: { color: '#444', weight: 1, fill: false } }).addTo(map);
 
+    // Charger CSV
     Papa.parse("data.csv", {
       download: true,
       header: true,
-      delimiter: ",", 
+	  delimiter: ",", 
       dynamicTyping: true,
       complete: function(results) {
         const data = results.data.filter(r => r.latitude && r.longitude && r.tests);
@@ -172,6 +90,8 @@ fetch("tunisia_gouvernorats.json")
 
         data.forEach(r => {
           let gov = "Inconnu";
+
+          // Vérifier dans quel polygone se trouve le point
           for (const f of geojsonData.features) {
             if (turf.booleanPointInPolygon(turf.point([r.longitude, r.latitude]), f.geometry)) {
               gov = f.properties.gov_name_f;
@@ -179,9 +99,11 @@ fetch("tunisia_gouvernorats.json")
             }
           }
 
+          // Résumé par gouvernorat
           if (!summary[gov]) summary[gov] = 0;
           summary[gov] += r.tests;
 
+          // Ajouter point sur la carte
           const color = getColor(r.tests, min, max);
           const marker = L.circleMarker([r.latitude, r.longitude], {
             radius: 6,
@@ -190,13 +112,17 @@ fetch("tunisia_gouvernorats.json")
             fillOpacity: 0.8,
             weight: 1
           }).bindPopup(`<b>Gouvernorat:</b> ${gov}<br><b>Tests:</b> ${r.tests}<br><b>Coord:</b> ${r.latitude}, ${r.longitude}`);
+
           markers.addLayer(marker);
         });
 
         map.addLayer(markers);
+
+        // Adapter la vue à tous les points
         const points = data.map(r => [r.latitude, r.longitude]);
         map.fitBounds(points);
 
+        // Générer tableau résumé
         const table = document.getElementById('govTable'); table.innerHTML = "";
         Object.entries(summary).sort((a,b)=>b[1]-a[1]).forEach(([gov,total])=>{
           const row = document.createElement("tr");
@@ -207,19 +133,6 @@ fetch("tunisia_gouvernorats.json")
     });
   })
   .catch(err => console.error("Erreur chargement GeoJSON:", err));
-
-// Panneau coulissant responsive
-const toggleBtn = document.getElementById('toggleSummary');
-const summaryContent = document.getElementById('summaryContent');
-
-toggleBtn.addEventListener('click', () => {
-  summaryContent.classList.toggle('open');
-  if (summaryContent.classList.contains('open')) {
-    toggleBtn.textContent = "Résumé par gouvernorat ▲";
-  } else {
-    toggleBtn.textContent = "Résumé par gouvernorat ▼";
-  }
-});
 </script>
 
 </body>
