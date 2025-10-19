@@ -3,166 +3,115 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comparatif FixBox / MaxBox</title>
+  <title>FixBox / MaxBox avec résumés par gouvernorat</title>
 
   <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- Clustering + PapaParse -->
+  <!-- MarkerCluster & PapaParse -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
+  <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
 
   <style>
-    body {
-      margin: 0;
-      font-family: "Segoe UI", sans-serif;
-      background: #111;
-      color: #fff;
-      overflow: hidden;
-    }
-
-    .container {
-      display: flex;
-      flex-direction: row;
-      height: 100vh;
-    }
-
-    .map-section {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      border-right: 2px solid #222;
-    }
-
-    .map {
-      flex: 1;
-      width: 100%;
-    }
-
-    .title {
-      text-align: center;
-      font-size: 1.2rem;
-      font-weight: bold;
-      padding: 10px;
-      background: rgba(0,0,0,0.8);
-    }
-
-    .resume {
-      padding: 10px;
-      height: 180px;
-      overflow-y: auto;
-      background: rgba(0,0,0,0.6);
-      font-size: 0.9rem;
-    }
-
-    /* --- Responsive --- */
-    @media (max-width: 900px) {
-      .container {
-        flex-direction: column;
-      }
-      .map-section {
-        border-right: none;
-        border-bottom: 2px solid #222;
-      }
-    }
+    body { margin:0; font-family: "Segoe UI", sans-serif; background: #111; color: #fff; overflow: hidden; }
+    .container { display:flex; flex-direction: row; height:100vh; }
+    .map-section { flex:1; display:flex; flex-direction:column; border-right:2px solid #222; }
+    .map { flex:1; width:100%; }
+    .title { text-align:center; font-size:1.2rem; font-weight:bold; padding:10px; background: rgba(0,0,0,0.7); }
+    .resume { padding:10px; height:200px; overflow-y:auto; background: rgba(0,0,0,0.5); font-size:0.9rem; }
+    @media(max-width:900px){ .container{ flex-direction:column; } .map-section{ border-right:none; border-bottom:2px solid #222; } }
   </style>
 </head>
 <body>
 
-  <div class="container">
-    <!-- FixBox -->
-    <div class="map-section">
-      <div class="title">FixBox</div>
-      <div id="mapFixbox" class="map"></div>
-      <div id="resumeFixbox" class="resume">Chargement...</div>
-    </div>
-
-    <!-- MaxBox -->
-    <div class="map-section">
-      <div class="title" style="background:#1e3a8a;">MaxBox</div>
-      <div id="mapMaxbox" class="map"></div>
-      <div id="resumeMaxbox" class="resume">Chargement...</div>
-    </div>
+<div class="container">
+  <!-- FixBox -->
+  <div class="map-section">
+    <div class="title">FixBox</div>
+    <div id="mapFixbox" class="map"></div>
+    <div id="resumeFixbox" class="resume">Chargement...</div>
   </div>
 
-  <script>
-    // === CONFIGURATIONS ===
-    const CONFIGS = [
-      {
-        idMap: "mapFixbox",
-        csv: "data.csv",
-        color: "#ff6600",
-        resumeId: "resumeFixbox",
-        baseLayer: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+  <!-- MaxBox -->
+  <div class="map-section">
+    <div class="title" style="background:#1e3a8a;">MaxBox</div>
+    <div id="mapMaxbox" class="map"></div>
+    <div id="resumeMaxbox" class="resume">Chargement...</div>
+  </div>
+</div>
+
+<script>
+const CONFIGS = [
+  { idMap:'mapFixbox', csv:'data.csv', color:'#ff6600', resumeId:'resumeFixbox', base:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' },
+  { idMap:'mapMaxbox', csv:'dataMX.csv', color:'#1e90ff', resumeId:'resumeMaxbox', base:'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png' }
+];
+
+fetch("tunisia_gouvernorats.json")
+.then(res=>res.json())
+.then(geojsonData => {
+  CONFIGS.forEach(cfg=>{
+    const map = L.map(cfg.idMap).setView([34.0, 9.0],7);
+    L.tileLayer(cfg.base,{maxZoom:14}).addTo(map);
+
+    // Affichage des limites
+    L.geoJSON(geojsonData,{ style:{color:'#fff',weight:1,fill:false} }).addTo(map);
+
+    const markers = L.markerClusterGroup({ chunkedLoading:true });
+    const resume = {};
+
+    Papa.parse(cfg.csv,{ download:true, header:true, dynamicTyping:true,
+      complete:function(results){
+        results.data.forEach(r=>{
+          if(!r.latitude||!r.longitude) return;
+          const lat=parseFloat(r.latitude), lon=parseFloat(r.longitude);
+          const tests=parseInt(r.tests||0);
+
+          // Trouver le gouvernorat exact via GeoJSON
+          let gov = "Non défini";
+          for(const f of geojsonData.features){
+            if(turf.booleanPointInPolygon(turf.point([lon,lat]),f.geometry)){
+              gov=f.properties.gov_name_f;
+              break;
+            }
+          }
+
+          const circle = L.circleMarker([lat,lon],{
+            radius:5, fillColor:cfg.color, color:'#fff', weight:0.5, fillOpacity:0.8
+          }).bindPopup(`<b>${r.site||"Site"}</b><br>${gov}<br><b>Tests:</b> ${tests}`);
+          markers.addLayer(circle);
+
+          resume[gov] = (resume[gov]||0) + tests;
+        });
+
+        map.addLayer(markers);
+
+        // Ajuster la vue
+        const bounds = results.data.filter(r=>r.latitude&&r.longitude).map(r=>[parseFloat(r.latitude),parseFloat(r.longitude)]);
+        if(bounds.length>0) map.fitBounds(bounds);
+
+        // Affichage résumé
+        const sorted = Object.entries(resume).sort((a,b)=>b[1]-a[1]);
+        const div = document.getElementById(cfg.resumeId);
+        div.innerHTML="";
+        sorted.forEach(([gov,total])=>{
+          const p=document.createElement("div");
+          p.textContent=`${gov}: ${total.toLocaleString()} tests`;
+          div.appendChild(p);
+        });
       },
-      {
-        idMap: "mapMaxbox",
-        csv: "dataMX.csv",
-        color: "#1e90ff",
-        resumeId: "resumeMaxbox",
-        baseLayer: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
+      error: err=>{
+        document.getElementById(cfg.resumeId).textContent="Erreur CSV";
+        console.error("Erreur CSV:",err);
       }
-    ];
-
-    // === CHARGEMENT GLOBAL ===
-    CONFIGS.forEach(cfg => {
-      const map = L.map(cfg.idMap).setView([34.0, 9.0], 7);
-      L.tileLayer(cfg.baseLayer, { maxZoom: 14 }).addTo(map);
-      const markers = L.markerClusterGroup({ chunkedLoading: true });
-
-      Papa.parse(cfg.csv, {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        complete: function(results) {
-          const data = results.data.filter(r => r.latitude && r.longitude);
-          const resume = {};
-          const bounds = [];
-
-          data.forEach(r => {
-            const lat = parseFloat(r.latitude);
-            const lon = parseFloat(r.longitude);
-            const gov = r.gov || "Non défini";
-            const tests = parseInt(r.tests || 0);
-
-            const marker = L.circleMarker([lat, lon], {
-              radius: 5,
-              fillColor: cfg.color,
-              color: "#fff",
-              weight: 0.5,
-              opacity: 1,
-              fillOpacity: 0.8
-            });
-            marker.bindPopup(`<b>${r.site || 'Site'}</b><br>${gov}<br><b>Tests:</b> ${tests}`);
-            markers.addLayer(marker);
-            bounds.push([lat, lon]);
-
-            resume[gov] = (resume[gov] || 0) + tests;
-          });
-
-          map.addLayer(markers);
-          if (bounds.length > 0) map.fitBounds(bounds);
-
-          // Résumé trié
-          const sorted = Object.entries(resume).sort((a,b)=>b[1]-a[1]);
-          const resumeDiv = document.getElementById(cfg.resumeId);
-          resumeDiv.innerHTML = "";
-          sorted.forEach(([gov, total])=>{
-            const row = document.createElement("div");
-            row.textContent = `${gov}: ${total.toLocaleString()} tests`;
-            resumeDiv.appendChild(row);
-          });
-        },
-        error: err => {
-          document.getElementById(cfg.resumeId).textContent = "Erreur de lecture CSV";
-          console.error("Erreur CSV:", err);
-        }
-      });
     });
-  </script>
+  });
+})
+.catch(err=>console.error("Erreur chargement GeoJSON:",err));
+</script>
 
 </body>
 </html>
