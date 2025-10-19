@@ -85,7 +85,7 @@ fetch("tunisia_gouvernorats.json")
 
           const circle = L.circleMarker([lat,lon],{
             radius:5, fillColor:cfg.color, color:'#fff', weight:0.5, fillOpacity:0.8
-          }).bindPopup(`<b>${r.site||"Site"}</b><br>${gov}<br><b>Tests:</b> ${tests}`);
+          }).bindPopup(`<b>${r.site||"Site"}</b><br>${[lat,lon]}<br><b>Tests:</b> ${tests}`);
           markers.addLayer(circle);
 
           resume[gov] = (resume[gov]||0) + tests;
