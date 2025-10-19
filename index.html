@@ -3,111 +3,152 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comparatif FixBox vs MaxBox</title>
+  <title>Comparatif FixBox / MaxBox</title>
 
-  <!-- Leaflet & MarkerCluster -->
+  <!-- Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Clustering + PapaParse -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
   <script src="https://unpkg.com/papaparse@5.3.0/papaparse.min.js"></script>
 
   <style>
     body {
       margin: 0;
-      background: #0a0a0a;
-      color: white;
       font-family: "Segoe UI", sans-serif;
+      background: #111;
+      color: #fff;
     }
 
     .container {
       display: flex;
       flex-direction: row;
       height: 100vh;
-      width: 100vw;
     }
 
-    .map-box {
+    .map-section {
       flex: 1;
-      position: relative;
-      height: 100%;
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #222;
     }
 
-    #mapFixbox, #mapMaxbox {
-      height: 100%;
+    .map {
+      flex: 1;
       width: 100%;
     }
 
     .title {
-      position: absolute;
-      top: 10px;
-      left: 20px;
-      z-index: 1000;
+      text-align: center;
       font-size: 1.2rem;
       font-weight: bold;
-      text-shadow: 1px 1px 3px black;
+      padding: 10px;
+      background: rgba(0,0,0,0.7);
+    }
+
+    .resume {
+      padding: 10px;
+      height: 200px;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.5);
+      font-size: 0.9rem;
+    }
+
+    /* --- Responsive --- */
+    @media (max-width: 900px) {
+      .container {
+        flex-direction: column;
+      }
+      .map-section {
+        border-right: none;
+        border-bottom: 2px solid #222;
+      }
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <!-- Bloc gauche : FixBox -->
-    <div class="map-box">
-      <div id="mapFixbox"></div>
+    <!-- FixBox -->
+    <div class="map-section">
       <div class="title">FixBox</div>
+      <div id="mapFixbox" class="map"></div>
+      <div id="resumeFixbox" class="resume"></div>
     </div>
 
-    <!-- Bloc droite : MaxBox -->
-    <div class="map-box">
-      <div id="mapMaxbox"></div>
-      <div class="title">MaxBox</div>
+    <!-- MaxBox -->
+    <div class="map-section">
+      <div class="title" style="background:#1e3a8a;">MaxBox</div>
+      <div id="mapMaxbox" class="map"></div>
+      <div id="resumeMaxbox" class="resume"></div>
     </div>
   </div>
 
   <script>
-    // --- Carte FixBox ---
+    // --- Initialisation des cartes ---
     const mapFix = L.map('mapFixbox').setView([34.0, 9.0], 7);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; FixBox',
-    }).addTo(mapFix);
-
-    // --- Carte MaxBox ---
     const mapMax = L.map('mapMaxbox').setView([34.0, 9.0], 7);
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
-      attribution: '&copy; MaxBox',
-    }).addTo(mapMax);
 
-    // --- Fonction utilitaire pour charger et afficher le CSV ---
-    function loadCSV(map, csvFile, color) {
+    // Fond FixBox (noir)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(mapFix);
+
+    // Fond MaxBox (clair)
+    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png').addTo(mapMax);
+
+    // --- Fonction utilitaire : charger CSV et afficher les points ---
+    function chargerCarte(map, csvFile, couleur, idResume) {
       Papa.parse(csvFile, {
         download: true,
         header: true,
         complete: function(results) {
           const markers = L.markerClusterGroup();
+          const resume = {};
+
           results.data.forEach(row => {
-            if (row.lat && row.lon) {
-              const circle = L.circleMarker([parseFloat(row.lat), parseFloat(row.lon)], {
-                radius: 6,
-                fillColor: color,
-                color: '#fff',
-                weight: 1,
-                opacity: 1,
-                fillOpacity: 0.8
-              });
-              circle.bindPopup(`<b>${row.site || 'Site inconnu'}</b><br>Tests: ${row.tests || 'N/A'}`);
-              markers.addLayer(circle);
-            }
+            if (!row.lat || !row.lon) return;
+
+            const lat = parseFloat(row.lat);
+            const lon = parseFloat(row.lon);
+            const tests = parseInt(row.tests || 0);
+            const gov = row.gov || "Non défini";
+
+            // Ajout sur carte
+            const circle = L.circleMarker([lat, lon], {
+              radius: 6,
+              fillColor: couleur,
+              color: "#fff",
+              weight: 1,
+              fillOpacity: 0.8
+            }).bindPopup(`<b>${row.site || "Site"}</b><br>Tests : ${tests}`);
+            markers.addLayer(circle);
+
+            // Calcul résumé
+            if (!resume[gov]) resume[gov] = 0;
+            resume[gov] += tests;
           });
+
           map.addLayer(markers);
+
+          // Affichage résumé
+          const div = document.getElementById(idResume);
+          div.innerHTML = "";
+          const entries = Object.entries(resume).sort((a,b) => b[1]-a[1]);
+          entries.forEach(([gov, total]) => {
+            const p = document.createElement("p");
+            p.textContent = `${gov}: ${total} tests`;
+            div.appendChild(p);
+          });
         }
       });
     }
 
-    // Charger les deux fichiers
-    loadCSV(mapFix, 'data.csv', '#ff6600');   // FixBox : orange sur fond noir
-    loadCSV(mapMax, 'dataMX.csv', '#1e90ff'); // MaxBox : bleu royal
+    // --- Charger les deux jeux de données ---
+    chargerCarte(mapFix, "data.csv", "#ff6600", "resumeFixbox");
+    chargerCarte(mapMax, "dataMX.csv", "#1e90ff", "resumeMaxbox");
   </script>
+
 </body>
 </html>
