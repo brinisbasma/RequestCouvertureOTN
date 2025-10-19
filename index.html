@@ -21,6 +21,7 @@
       font-family: "Segoe UI", sans-serif;
       background: #111;
       color: #fff;
+      overflow: hidden;
     }
 
     .container {
@@ -46,14 +47,14 @@
       font-size: 1.2rem;
       font-weight: bold;
       padding: 10px;
-      background: rgba(0,0,0,0.7);
+      background: rgba(0,0,0,0.8);
     }
 
     .resume {
       padding: 10px;
-      height: 200px;
+      height: 180px;
       overflow-y: auto;
-      background: rgba(0,0,0,0.5);
+      background: rgba(0,0,0,0.6);
       font-size: 0.9rem;
     }
 
@@ -76,78 +77,91 @@
     <div class="map-section">
       <div class="title">FixBox</div>
       <div id="mapFixbox" class="map"></div>
-      <div id="resumeFixbox" class="resume"></div>
+      <div id="resumeFixbox" class="resume">Chargement...</div>
     </div>
 
     <!-- MaxBox -->
     <div class="map-section">
       <div class="title" style="background:#1e3a8a;">MaxBox</div>
       <div id="mapMaxbox" class="map"></div>
-      <div id="resumeMaxbox" class="resume"></div>
+      <div id="resumeMaxbox" class="resume">Chargement...</div>
     </div>
   </div>
 
   <script>
-    // --- Initialisation des cartes ---
-    const mapFix = L.map('mapFixbox').setView([34.0, 9.0], 7);
-    const mapMax = L.map('mapMaxbox').setView([34.0, 9.0], 7);
+    // === CONFIGURATIONS ===
+    const CONFIGS = [
+      {
+        idMap: "mapFixbox",
+        csv: "data.csv",
+        color: "#ff6600",
+        resumeId: "resumeFixbox",
+        baseLayer: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      },
+      {
+        idMap: "mapMaxbox",
+        csv: "dataMX.csv",
+        color: "#1e90ff",
+        resumeId: "resumeMaxbox",
+        baseLayer: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png'
+      }
+    ];
 
-    // Fond FixBox (noir)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(mapFix);
+    // === CHARGEMENT GLOBAL ===
+    CONFIGS.forEach(cfg => {
+      const map = L.map(cfg.idMap).setView([34.0, 9.0], 7);
+      L.tileLayer(cfg.baseLayer, { maxZoom: 14 }).addTo(map);
+      const markers = L.markerClusterGroup({ chunkedLoading: true });
 
-    // Fond MaxBox (clair)
-    L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png').addTo(mapMax);
-
-    // --- Fonction utilitaire : charger CSV et afficher les points ---
-    function chargerCarte(map, csvFile, couleur, idResume) {
-      Papa.parse(csvFile, {
+      Papa.parse(cfg.csv, {
         download: true,
         header: true,
+        dynamicTyping: true,
         complete: function(results) {
-          const markers = L.markerClusterGroup();
+          const data = results.data.filter(r => r.latitude && r.longitude);
           const resume = {};
+          const bounds = [];
 
-          results.data.forEach(row => {
-            if (!row.lat || !row.lon) return;
+          data.forEach(r => {
+            const lat = parseFloat(r.latitude);
+            const lon = parseFloat(r.longitude);
+            const gov = r.gov || "Non défini";
+            const tests = parseInt(r.tests || 0);
 
-            const lat = parseFloat(row.lat);
-            const lon = parseFloat(row.lon);
-            const tests = parseInt(row.tests || 0);
-            const gov = row.gov || "Non défini";
-
-            // Ajout sur carte
-            const circle = L.circleMarker([lat, lon], {
-              radius: 6,
-              fillColor: couleur,
+            const marker = L.circleMarker([lat, lon], {
+              radius: 5,
+              fillColor: cfg.color,
               color: "#fff",
-              weight: 1,
+              weight: 0.5,
+              opacity: 1,
               fillOpacity: 0.8
-            }).bindPopup(`<b>${row.site || "Site"}</b><br>Tests : ${tests}`);
-            markers.addLayer(circle);
+            });
+            marker.bindPopup(`<b>${r.site || 'Site'}</b><br>${gov}<br><b>Tests:</b> ${tests}`);
+            markers.addLayer(marker);
+            bounds.push([lat, lon]);
 
-            // Calcul résumé
-            if (!resume[gov]) resume[gov] = 0;
-            resume[gov] += tests;
+            resume[gov] = (resume[gov] || 0) + tests;
           });
 
           map.addLayer(markers);
+          if (bounds.length > 0) map.fitBounds(bounds);
 
-          // Affichage résumé
-          const div = document.getElementById(idResume);
-          div.innerHTML = "";
-          const entries = Object.entries(resume).sort((a,b) => b[1]-a[1]);
-          entries.forEach(([gov, total]) => {
-            const p = document.createElement("p");
-            p.textContent = `${gov}: ${total} tests`;
-            div.appendChild(p);
+          // Résumé trié
+          const sorted = Object.entries(resume).sort((a,b)=>b[1]-a[1]);
+          const resumeDiv = document.getElementById(cfg.resumeId);
+          resumeDiv.innerHTML = "";
+          sorted.forEach(([gov, total])=>{
+            const row = document.createElement("div");
+            row.textContent = `${gov}: ${total.toLocaleString()} tests`;
+            resumeDiv.appendChild(row);
           });
+        },
+        error: err => {
+          document.getElementById(cfg.resumeId).textContent = "Erreur de lecture CSV";
+          console.error("Erreur CSV:", err);
         }
       });
-    }
-
-    // --- Charger les deux jeux de données ---
-    chargerCarte(mapFix, "data.csv", "#ff6600", "resumeFixbox");
-    chargerCarte(mapMax, "dataMX.csv", "#1e90ff", "resumeMaxbox");
+    });
   </script>
 
 </body>
